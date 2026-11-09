@@ -2695,11 +2695,27 @@ textarea {
 
 /* 附件 */
 .chat-clip {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
   border: 0;
+  border-radius: 50%;
   background: none;
-  padding: 0 2px;
+  padding: 0;
+  color: #565959;
   cursor: pointer;
-  font-size: 16px;
+}
+
+.chat-clip:hover {
+  background: #f0f2f2;
+  color: #007185;
+}
+
+.chat-clip:disabled {
+  color: #c2c6c6;
+  cursor: not-allowed;
 }
 
 .chat-clip:disabled {
