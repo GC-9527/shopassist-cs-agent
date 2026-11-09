@@ -17,17 +17,51 @@ class QuestionRewriteService:
     # 出现在"耳机还能退吗"里并不表示上下文缺失，收进来会造成大面积误澄清。
     _vague_words = ("这个", "那个", "它", "刚才", "上面", "怎么弄", "那笔")
     _business_id_pattern = re.compile(r"(?<![A-Za-z0-9])(?:[A-Za-z]{2,8}-?)?\d{8,24}(?![A-Za-z0-9])")
+    # 带这些词的问题通常是自足的：有明确业务对象，改写不会带来新信息。
+    _domain_terms = (
+        "订单", "物流", "快递", "包裹", "发货", "收货", "签收",
+        "退货", "退款", "换货", "保修", "售后", "发票", "价保", "差价",
+        "优惠", "运费", "地址", "耳机", "充电", "音箱", "数据线", "充电宝",
+        "投影", "配件", "人工", "客服", "政策", "规则", "流程",
+    )
+    _follow_up_prefixes = ("那", "还有", "再", "然后", "另外", "顺便")
+    _elliptical_suffixes = ("呢", "怎么办", "可以吗", "行吗", "怎么弄")
 
     def __init__(self, *, settings: Settings, llm_client: LLMClient):
         self._settings = settings
         self._llm_client = llm_client
 
-    def should_rewrite(self, question: str) -> bool:
-        """使用零 token 门禁判断是否值得调用改写模型。"""
+    def should_rewrite(
+        self, question: str, context: ShortTermContext | None = None
+    ) -> bool:
+        """零 token 门禁：只把真正依赖上下文的问题交给改写模型。
+
+        渐进式策略：
+        1. 自带业务单号 → 信息已足够，直接检索；
+        2. 出现明确指代词 → 值得改写（没有上下文时 resolve 会直接澄清）；
+        3. 没有历史上下文 → 没有可消解的指代，调用模型也改写不出东西；
+        4. 以"那/还有/再/然后"开头，或极短且没有业务词 → 典型追问，改写；
+        5. 带业务词或表达完整 → 自足，不改写。
+
+        复杂问题不会因此被牺牲：检索质量不足时，
+        `evaluate_retrieval` 会带着 retrieval_feedback 触发一次受控改写。
+        """
         compact = question.strip()
         if not compact:
             return False
-        return len(compact) <= 20 or any(word in compact for word in self._vague_words)
+        if self._business_id_pattern.search(compact):
+            return False
+        if self._contains_vague_reference(compact):
+            return True
+        if context is None or not self._has_trusted_context(context):
+            return False
+        if compact.startswith(self._follow_up_prefixes):
+            return True
+        if any(term in compact for term in self._domain_terms):
+            return False
+        return len(compact) <= 6 or (
+            len(compact) <= 12 and compact.endswith(self._elliptical_suffixes)
+        )
 
     async def resolve(
         self,
@@ -39,7 +73,9 @@ class QuestionRewriteService:
     ) -> tuple[QueryRewriteResult, LLMResponse | None]:
         """生成结构化改写；模型失败时使用确定性规则降级。"""
         original = question.strip()
-        needs_rewrite = self.should_rewrite(original) or retrieval_feedback is not None
+        needs_rewrite = (
+            self.should_rewrite(original, context) or retrieval_feedback is not None
+        )
         if not self._settings.semantic_rewrite_enabled or not needs_rewrite:
             return self._original_result(original), None
 

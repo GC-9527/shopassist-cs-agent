@@ -286,6 +286,7 @@ npm --prefix web run build
 | 补齐计划分支的审批回执 | `workflows/nodes.py` | 计划流程审批后不写 `tool_results`，前端拿不到执行回执 |
 | 新增分层评测集与执行器 | `eval/`、`scripts/build_eval_set.py`、`scripts/evaluate_eval_set.py` | 原项目只有 20 条检索样例，无法按类别、风险、切分归因 |
 | 意图识别改为特征打分分类器 | `services/intent_classifier.py`、`services/question_router.py` | 关键词规则会让动作词、"本人"等弱信号互相放大，盲测暴露了泛化缺口 |
+| 问题改写改为渐进式 | `services/question_rewrite_service.py`、`workflows/nodes.py` | 原来短问题一律调用改写模型，每个问题多 1–3 秒；现在自带单号/业务词/无上下文直接走规则，只有指代和省略追问才用模型，检索不足时再升级一次 |
 | 新增关键词覆盖召回通道 | `infrastructure/keyword_search/`、`services/rag_service.py` | 三路召回（向量 / BM25 / 关键词覆盖）用 RRF 融合，补精确度 |
 | 新增查询扩展召回路 | `services/query_expansion_service.py`、`services/rag_service.py` | 盲测失败集中在"措辞不同导致词锚断裂"，检索前用模型把口语改写成文档用词，作为额外召回路而不替换原查询 |
 | 鉴权默认开启 | `api/routes_auth.py`、`core/security.py`、`web/src/api.ts` | 原来 `SECURITY_ENABLED=false`，请求体里的 user_id 就是身份；改为令牌携带身份，客户只能访问自己的资源 |

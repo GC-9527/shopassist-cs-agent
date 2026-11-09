@@ -135,8 +135,8 @@ class _CleanRewriteLLM:
         )
 
 
-async def test_adverbial_can_still_is_not_a_vague_reference() -> None:
-    """“还能”是普通副词，不该被当成回指而拦下正常问题。"""
+async def test_self_contained_question_skips_llm_rewrite() -> None:
+    """完整问题不依赖上下文，不应为了一次改写多付一轮模型延迟。"""
 
     service = QuestionRewriteService(
         settings=Settings(),
@@ -149,6 +149,46 @@ async def test_adverbial_can_still_is_not_a_vague_reference() -> None:
         model="rewrite-model",
     )
 
-    assert response is not None
-    assert result.missing_fields == []
-    assert result.needs_clarification is False
+    assert response is None
+    assert result.needs_rewrite is False
+    assert result.source == "original"
+
+
+def _context_with_history() -> ShortTermContext:
+    return ShortTermContext(
+        recent_messages=[
+            ChatMessage(role="user", content="我的订单是 202607180001"),
+            ChatMessage(role="assistant", content="订单显示已签收"),
+        ]
+    )
+
+
+def test_fixed_instructions_skip_rewrite_with_context() -> None:
+    """固定指令和自足问题直接走规则/分类，不触发改写模型。"""
+
+    service = QuestionRewriteService(settings=Settings(), llm_client=_CleanRewriteLLM())
+    context = _context_with_history()
+
+    assert service.should_rewrite("我要转人工客服", context) is False
+    assert service.should_rewrite("退款多久到账", context) is False
+    assert service.should_rewrite("帮我查一下订单 202607180001 的物流", context) is False
+    assert service.should_rewrite("耳机还能退吗", context) is False
+
+
+def test_follow_up_questions_use_llm_rewrite() -> None:
+    """带指代或省略的追问才需要模型补全。"""
+
+    service = QuestionRewriteService(settings=Settings(), llm_client=_CleanRewriteLLM())
+    context = _context_with_history()
+
+    assert service.should_rewrite("那退款呢", context) is True
+    assert service.should_rewrite("那笔钱什么时候到", context) is True
+    assert service.should_rewrite("这个怎么弄", context) is True
+
+
+def test_short_vague_question_without_context_does_not_call_llm() -> None:
+    """没有历史时连指代都无从消解，调用改写模型没有意义。"""
+
+    service = QuestionRewriteService(settings=Settings(), llm_client=_CleanRewriteLLM())
+
+    assert service.should_rewrite("那退款呢", ShortTermContext()) is False
