@@ -424,6 +424,15 @@ export default function CustomerChat({
             </div>
           </div>
           <div className="chat-head-actions">
+            {floating ? (
+              <button
+                className="chat-head-btn"
+                onClick={() => setFloating(false)}
+                title={lang === "zh" ? "返回全屏模式" : "Back to full screen"}
+              >
+                ⤢ {lang === "zh" ? "全屏" : "Full"}
+              </button>
+            ) : null}
             <button className="chat-head-btn" onClick={() => void send(t.callback)}>
               ☎ {s.callBack}
             </button>
