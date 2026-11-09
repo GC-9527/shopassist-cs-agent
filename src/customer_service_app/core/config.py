@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     llm_base_url: str = ""
     llm_model: str = ""
     llm_temperature: float = 0.2
+    # Qwen3 系列默认开启思考会显著增加延迟；显式设为 false 可关闭。
+    # 留空则不传该参数，兼容不支持 enable_thinking 的供应商。
+    llm_enable_thinking: bool | None = None
     llm_timeout_seconds: int = 60
 
     embedding_provider: str = "ollama"

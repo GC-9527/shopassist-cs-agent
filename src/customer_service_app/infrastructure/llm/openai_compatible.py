@@ -58,6 +58,11 @@ class OpenAICompatibleLLMClient(LLMClient):
             kwargs["tools"] = tools
         if tool_choice is not None:
             kwargs["tool_choice"] = tool_choice
+        if self._settings.llm_enable_thinking is not None:
+            # 只对显式配置的供应商传；Qwen3 关闭思考能明显降低首字与总耗时。
+            kwargs["extra_body"] = {
+                "enable_thinking": self._settings.llm_enable_thinking
+            }
         selected_model = str(kwargs["model"])
         try:
             response = await self.client.chat.completions.create(**kwargs)
@@ -116,6 +121,10 @@ class OpenAICompatibleLLMClient(LLMClient):
             ),
             "stream": True,
         }
+        if self._settings.llm_enable_thinking is not None:
+            kwargs["extra_body"] = {
+                "enable_thinking": self._settings.llm_enable_thinking
+            }
         selected_model = str(kwargs["model"])
 
         try:

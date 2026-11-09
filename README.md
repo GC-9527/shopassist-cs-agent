@@ -126,7 +126,12 @@ docker compose --profile durable up -d mysql redis qdrant checkpoint-postgres
 ```dotenv
 LLM_API_KEY=sk-xxx            # 阿里云百炼 DashScope
 EMBEDDING_API_KEY=sk-xxx      # 可与 LLM 同一个 Key
+LLM_MODEL=qwen3.8-flash
+LLM_ENABLE_THINKING=false     # 关闭 Qwen3 思考，显著降低单轮耗时
 ```
+
+Qwen3 系列默认会先输出思考内容。关闭后，同一套提示词下单轮响应从 30–80 秒降到 2–9 秒
+（检索约 0.2–0.8 秒，其余是模型调用）。换用不支持 `enable_thinking` 的供应商时，把该行注释掉即可。
 
 ### 4.4 初始化数据库与样例数据
 
