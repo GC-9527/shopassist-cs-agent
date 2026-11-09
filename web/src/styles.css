@@ -705,6 +705,7 @@ textarea {
 }
 
 .chat-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -716,6 +717,31 @@ textarea {
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(15, 17, 17, 0.08);
   overflow: hidden;
+}
+
+/* 悬浮窗右上角的返回全屏按钮 */
+.chat-fullscreen {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #d5d9d9;
+  border-radius: 50%;
+  background: #fff;
+  color: #007185;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15, 17, 17, 0.12);
+}
+
+.chat-fullscreen:hover {
+  background: #e7f4f5;
+  border-color: #007185;
 }
 
 .chat-head {
