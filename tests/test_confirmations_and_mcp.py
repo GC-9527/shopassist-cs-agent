@@ -97,3 +97,22 @@ async def test_pending_action_claim_rejects_losing_request() -> None:
 
     assert claimed is False
     session.flush.assert_awaited_once()
+
+
+def test_confirmation_prompt_follows_tenant_language() -> None:
+    """中文租户不应看到英文确认提示，英文租户保持英文。"""
+
+    tool = SimpleNamespace(action_type="refund")
+    arguments = {"order_id": "202605150002", "reason": "不想要了"}
+
+    zh = ConfirmationService._build_confirmation_prompt(
+        tenant_id="zh", tool=tool, arguments=arguments  # type: ignore[arg-type]
+    )
+    en = ConfirmationService._build_confirmation_prompt(
+        tenant_id="us", tool=tool, arguments=arguments  # type: ignore[arg-type]
+    )
+
+    assert "请确认是否提交退款申请" in zh
+    assert "订单号：202605150002" in zh
+    assert "Please confirm your refund request" in en
+    assert "Order: 202605150002" in en

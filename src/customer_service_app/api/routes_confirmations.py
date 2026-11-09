@@ -66,7 +66,7 @@ async def approve_confirmation(
     return ConfirmationDecisionResponse(
         confirmation_id=confirmation_id,
         status="executed",
-        message="操作已确认，原 LangGraph 线程已恢复并执行完成",
+        message="操作已确认，处理结果会继续同步。",
         result={
             "tool_results": [item.model_dump() for item in response.tool_results],
             "plan": response.plan.model_dump() if response.plan else None,
@@ -107,7 +107,7 @@ async def reject_confirmation(
     return ConfirmationDecisionResponse(
         confirmation_id=confirmation_id,
         status="rejected",
-        message="操作已取消，原 LangGraph 线程已恢复并结束",
+        message="已取消该操作，未产生任何变更。",
         conversation_id=response.conversation_id,
         thread_id=response.thread_id,
         run_id=response.run_id,

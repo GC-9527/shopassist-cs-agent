@@ -37,8 +37,27 @@ export function statusLabel(status: string): string {
   return STATUS_ZH[status] ?? status;
 }
 
+/** 确认卡片对应的提示语是给卡片用的，恢复历史时 C 端不再当成普通气泡展示。 */
+function isConfirmationPromptMessage(
+  metadata: Record<string, unknown> | undefined,
+): boolean {
+  if (!metadata) return false;
+  if (metadata.type === "confirmation_required") return true;
+  const nested = metadata.assistant;
+  return (
+    typeof nested === "object" &&
+    nested !== null &&
+    (nested as Record<string, unknown>).type === "confirmation_required"
+  );
+}
+
 /** 一轮对话的完整状态机：发送、接收 SSE、处理确认。C 端和后台调试共用。 */
-export function useChatSession(session: DemoSession | null) {
+export function useChatSession(
+  session: DemoSession | null,
+  options: { showInternals?: boolean } = {},
+) {
+  // 工具回执、线程恢复提示这类内部信息只给后台看，C 端不展示。
+  const showInternals = options.showInternals ?? false;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [evidence, setEvidence] = useState<RunEvidence>(EMPTY_EVIDENCE);
   const [busy, setBusy] = useState(false);
@@ -113,16 +132,19 @@ export function useChatSession(session: DemoSession | null) {
                 };
                 setConversationId(answer.conversation_id);
                 patch({ status: answer.status });
-                setMessages((current) => [
-                  ...current,
-                  {
-                    id: crypto.randomUUID(),
-                    role: "assistant",
-                    text: answer.answer,
-                    status: answer.status,
-                    createdAt: Date.now(),
-                  },
-                ]);
+                // C 端等待确认时只显示确认卡片，不再把同一段确认提示重复成气泡。
+                if (showInternals || answer.status !== "waiting_confirmation") {
+                  setMessages((current) => [
+                    ...current,
+                    {
+                      id: crypto.randomUUID(),
+                      role: "assistant",
+                      text: answer.answer,
+                      status: answer.status,
+                      createdAt: Date.now(),
+                    },
+                  ]);
+                }
                 break;
               }
               case "done": {
@@ -139,7 +161,7 @@ export function useChatSession(session: DemoSession | null) {
         setBusy(false);
       }
     },
-    [busy, patch, session],
+    [busy, patch, session, showInternals],
   );
 
   const decide = useCallback(
@@ -155,13 +177,21 @@ export function useChatSession(session: DemoSession | null) {
           pending.id,
           action,
         );
-        const receipts = (decision.tool_results ?? []).map(
-          (item) => `${item.name} ${item.ok ? "成功" : "失败"}`,
-        );
-        const answer =
-          decision.answer && decision.answer !== pending.confirmation_prompt
-            ? decision.answer
-            : decision.message;
+        const receipts = showInternals
+          ? (decision.tool_results ?? []).map(
+              (item) => `${item.name} ${item.ok ? "成功" : "失败"}`,
+            )
+          : [];
+        const hasCustomerAnswer =
+          Boolean(decision.answer) && decision.answer !== pending.confirmation_prompt;
+        const answer = hasCustomerAnswer
+          ? decision.answer
+          : showInternals
+            ? decision.message
+            : action === "approve"
+              ? "已提交，处理结果会继续同步。"
+              : "已取消，未产生任何变更。";
+        // 工具名和回执只给后台；C 端只看到结果本身。
         const text = receipts.length ? `${answer}\n\n工具回执：${receipts.join("；")}` : answer;
         patch({
           pending: decision.next_confirmation ?? null,
@@ -198,6 +228,7 @@ export function useChatSession(session: DemoSession | null) {
       evidence.trace,
       patch,
       session,
+      showInternals,
     ],
   );
 
@@ -221,6 +252,9 @@ export function useChatSession(session: DemoSession | null) {
       setMessages(
         history
           .filter((item) => item.role === "user" || item.role === "assistant")
+          .filter(
+            (item) => showInternals || !isConfirmationPromptMessage(item.metadata),
+          )
           .map((item) => ({
             id: item.id,
             role: item.role as "user" | "assistant",
@@ -234,7 +268,7 @@ export function useChatSession(session: DemoSession | null) {
           })),
       );
     },
-    [],
+    [showInternals],
   );
 
   /** 轮询补进来的坐席消息：只取人工通道、且本地还没有的条目。 */

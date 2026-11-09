@@ -1216,12 +1216,49 @@ class CustomerServiceGraphNodes:
         return Command(
             update={
                 **common_update,
+                # 确认链路不重新跑模型：用工具回执拼一句客户能看懂的结果，
+                # 既快，也不会把线程恢复、工具名这类内部信息带到 C 端。
+                "final_answer": self._confirmation_completion(
+                    tenant_id=state["tenant_id"],
+                    action_type=action.action_type,
+                    result=result if isinstance(result, dict) else {},
+                ),
+                "status": "completed",
                 "tool_results": [*state.get("tool_results", []), tool_result],
                 "tool_cursor": int(state.get("tool_cursor", 0)) + 1,
                 "tool_call_count": int(state.get("tool_call_count", 0)) + 1,
             },
             goto="execute_tool_call",
         )
+
+    @staticmethod
+    def _confirmation_completion(
+        *, tenant_id: str, action_type: str, result: dict[str, Any]
+    ) -> str:
+        """把工具回执翻译成面向客户的完成提示，不暴露工具名和内部字段。"""
+
+        ticket_id = str(result.get("ticket_id") or result.get("handoff_id") or "").strip()
+        if action_type == "handoff":
+            return (
+                "已为您转接人工客服，坐席接入后会在这里继续。"
+                if tenant_id == "zh"
+                else "I've transferred you to a human agent; they'll continue here once connected."
+            )
+        if tenant_id == "zh":
+            label = {
+                "refund": "退款申请",
+                "compensation": "补偿申请",
+                "exchange": "换货申请",
+            }.get(action_type, "申请")
+            suffix = f"，工单号 {ticket_id}" if ticket_id else ""
+            return f"{label}已提交{suffix}。处理结果会在这里同步。"
+        label = {
+            "refund": "refund request",
+            "compensation": "compensation request",
+            "exchange": "exchange request",
+        }.get(action_type, "request")
+        suffix = f" (ticket {ticket_id})" if ticket_id else ""
+        return f"Your {label} has been submitted{suffix}. I'll update you here as it moves."
 
     async def finalize(
         self, state: CustomerServiceGraphState

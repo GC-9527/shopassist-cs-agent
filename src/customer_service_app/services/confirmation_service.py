@@ -97,7 +97,9 @@ class ConfirmationService:
         if existing is not None:
             return existing
 
-        confirmation_prompt = self._build_confirmation_prompt(tool=tool, arguments=arguments)
+        confirmation_prompt = self._build_confirmation_prompt(
+            tenant_id=tenant_id, tool=tool, arguments=arguments
+        )
 
         return await self._repo.create(
             tenant_id=tenant_id,
@@ -275,20 +277,41 @@ class ConfirmationService:
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     # 面向客户的确认文案：只说"要做什么、涉及哪一单、为什么"，不暴露工具名和风险等级。
-    _ACTION_LABELS = {
+    _ACTION_LABELS_EN = {
         "refund": "refund request",
         "compensation": "compensation request",
         "exchange": "exchange request",
         "handoff": "transfer to a support specialist",
     }
+    _ACTION_LABELS_ZH = {
+        "refund": "退款申请",
+        "compensation": "补偿申请",
+        "exchange": "换货申请",
+        "handoff": "转人工请求",
+    }
 
     @staticmethod
-    def _build_confirmation_prompt(*, tool: ToolSpec, arguments: dict[str, Any]) -> str:
-        """Build the customer-facing confirmation text for a side-effect action."""
-        label = ConfirmationService._ACTION_LABELS.get(tool.action_type, "request")
+    def _build_confirmation_prompt(
+        *, tenant_id: str, tool: ToolSpec, arguments: dict[str, Any]
+    ) -> str:
+        """Build the customer-facing confirmation text for a side-effect action.
+
+        文案跟随租户语言，避免中文界面里突然出现一段英文确认提示。
+        """
         reason = str(arguments.get("reason") or arguments.get("detail") or "").strip()
         order_id = str(arguments.get("order_id") or "").strip()
 
+        if tenant_id == "zh":
+            label = ConfirmationService._ACTION_LABELS_ZH.get(tool.action_type, "操作")
+            lines = [f"请确认是否提交{label}。"]
+            if order_id:
+                lines.append(f"订单号：{order_id}")
+            if reason:
+                lines.append(f"原因：{reason}")
+            lines.append("确认前不会提交任何申请。")
+            return "\n".join(lines)
+
+        label = ConfirmationService._ACTION_LABELS_EN.get(tool.action_type, "request")
         lines = [f"Please confirm your {label}."]
         if order_id:
             lines.append(f"Order: {order_id}")

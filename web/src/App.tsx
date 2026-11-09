@@ -30,7 +30,7 @@ export default function App() {
   const [session, setSession] = useState<DemoSession | null>(null);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [ready, setReady] = useState<boolean | null>(null);
-  const chat = useChatSession(session);
+  const chat = useChatSession(session, { showInternals: adminView });
   const sys = SHELL_COPY[lang];
   const tenantId = TENANT_BY_LANG[lang];
 

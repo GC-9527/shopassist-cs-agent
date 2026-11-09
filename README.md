@@ -300,6 +300,8 @@ npm --prefix web run build
 | C 端会话状态机 | `api/routes_conversations.py`、`services/human_support_service.py`、`web/src/components/CustomerChat.tsx` | 客户每 4 秒看到排队位置、坐席接入、处理结果和结束状态；人工消息轮询补入；排队中结束会话会取消转人工 |
 | 后台人工处理面板 | `web/src/components/HandoffWorkbench.tsx`、`web/src/components/HandoffQueue.tsx`、`api/routes_human_support.py` | 坐席在 `/admin` 内完成接入、回复、提交结果，运营确认后回到 Bot 或结束会话；队列默认只显示处理中的任务 |
 | 修复数据库时间序列化时区 | `core/time_utils.py`、`api/routes_conversations.py` | MySQL `DATETIME` 无时区，naive 时间直接序列化会被前端当成本地时间，恢复会话差 8 小时 |
+| C 端隐藏内部执行信息 | `web/src/useChatSession.ts`、`api/routes_confirmations.py`、`workflows/nodes.py` | 客户侧曾出现"工具回执""线程已恢复"；现在只有后台展示工具与回执，确认完成后返回一句客户能看懂的结果 |
+| 客服话术改为真人风格 | `prompts/customer_service.py` | 按"接话—进度—单步确认"三段式组织回复，禁止 Markdown、编号列表和 AI 套话；确认提示跟随租户语言 |
 
 ---
 
